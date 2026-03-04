@@ -19,7 +19,7 @@ project:
   source_files:
     - "top_level.v"
     - "edge_detect.v"
-    - "display_drive.v"
+    - "display_driver.v"
     - "digit_split.v"
     - "debounce.v"
     - "d20_core.v"
