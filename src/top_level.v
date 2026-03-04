@@ -52,14 +52,13 @@ module tt_um_d20_roller_rbebout(
 
     // digit split
     digit_split split (
-        .clk(clk),
         .value(final_value),
         .active(active),
         .tens(tens),
         .ones(ones)
     );
     
-    assign uio_oe 8'b11000000;
+    assign uio_oe = 8'b11000000;
     // display
     display_driver disp (
         .clk(clk),
