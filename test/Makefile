@@ -6,7 +6,7 @@ SIM ?= icarus
 FST ?= -fst # Use more efficient FST format
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = $(PWD)/top_level.v $(PWD)/edge_detect.v $(PWD)/display_driver.v $(PWD)/digit_split.v $(PWD)/debounce.v $(PWD)/d20_core.v $(PWD)/button_toggle.v
+PROJECT_SOURCES += $(PWD)/top_level.v $(PWD)/edge_detect.v $(PWD)/display_driver.v $(PWD)/digit_split.v $(PWD)/debounce.v $(PWD)/d20_core.v $(PWD)/button_toggle.v
 
 ifneq ($(GATES),yes)
 
