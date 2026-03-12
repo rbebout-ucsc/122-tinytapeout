@@ -7,9 +7,8 @@ from cocotb.triggers import ClockCycles
 import random
 
 # Derived from display_driver.v decode() with direct bit assignment in top_level.v:
-#   uo_out[i] = seg_wire[i]  — no reversal, map is decode() output directly.
+#   uo_out[i] = seg_wire[i] — no reversal, map is decode() output directly.
 # Segments are active-low so uo_out & 0x7F matches decode() table directly.
-# None = blank (all segments off = all bits high = 0x7F)
 SEGMENT_MAP = {
     0b0000000: 8,
     0b0000001: 0,
@@ -25,9 +24,8 @@ SEGMENT_MAP = {
 }
 
 # Digit select from display_driver digits_wire -> uio_out directly:
-#   digits=2'b01: digits[0]=uio_out[0]=1, digits[1]=uio_out[1]=0 -> ones active
-#   digits=2'b10: digits[0]=uio_out[0]=0, digits[1]=uio_out[1]=1 -> tens active
-# So: ones active when uio_out[0]==1, tens active when uio_out[1]==1
+#   digits=2'b01: uio_out[0]=1, uio_out[1]=0 -> ones active
+#   digits=2'b10: uio_out[0]=0, uio_out[1]=1 -> tens active
 
 def safe_int(signal, default=None):
     try:
@@ -37,22 +35,24 @@ def safe_int(signal, default=None):
 
 # -------------------------------------------------------------------
 # Signal drivers
+# rst_n is the hardware reset — active low, no debounce needed
+# ui_in[0] is the roll button — debounced in hardware (DEBOUNCE_CYCLES=500)
 # -------------------------------------------------------------------
 async def do_reset(dut):
-    dut.ui_in.value = 0b00000001
-    await ClockCycles(dut.clk, 600)
-    dut.ui_in.value = 0b00000000
-    await ClockCycles(dut.clk, 1200)
+    """Assert rst_n low briefly to reset all registers."""
+    dut.rst_n.value = 0
+    await ClockCycles(dut.clk, 10)
+    dut.rst_n.value = 1
+    await ClockCycles(dut.clk, 100)
 
 async def do_start(dut):
-    # Random idle before press so LFSR is at unpredictable phase.
-    # Range covers several full LFSR periods (period=31) plus debounce variance.
+    """Press roll button with random pre-delay for LFSR variance."""
     await ClockCycles(dut.clk, random.randint(0, 5000))
     hold = 600 + random.randint(0, 500)
-    dut.ui_in.value = 0b00000010
+    dut.ui_in.value = 0b00000001  # ui_in[0] = roll button
     await ClockCycles(dut.clk, hold)
     dut.ui_in.value = 0b00000000
-    await ClockCycles(dut.clk, 1200)
+    await ClockCycles(dut.clk, 1200)  # wait for debounce release to settle
 
 async def wait_for_active(dut, timeout_cycles=30000):
     """Wait until display shows a non-blank segment on either digit."""
@@ -62,14 +62,15 @@ async def wait_for_active(dut, timeout_cycles=30000):
         uo_val  = safe_int(dut.uo_out)
         if uio_val is None or uo_val is None:
             continue
-        ones_active = (uio_val >> 0) & 1  # 1 = ones active
-        tens_active = (uio_val >> 1) & 1  # 1 = tens active
+        ones_active = (uio_val >> 0) & 1
+        tens_active = (uio_val >> 1) & 1
         seg = uo_val & 0x7F
         if (ones_active or tens_active) and seg != 0x7F:
             return True
     return False
 
 async def init(dut):
+    """Initialise signals and assert rst_n at startup."""
     dut.rst_n.value  = 0
     dut.ena.value    = 1
     dut.ui_in.value  = 0
@@ -77,10 +78,11 @@ async def init(dut):
     clock = Clock(dut.clk, 20, unit="us")
     cocotb.start_soon(clock.start())
     await ClockCycles(dut.clk, 10)
+    dut.rst_n.value  = 1
+    await ClockCycles(dut.clk, 100)
 
 # -------------------------------------------------------------------
 # Display reading
-# ones active when uio_out[0]==1, tens active when uio_out[1]==1
 # -------------------------------------------------------------------
 async def sample_one_mux_cycle(dut, timeout=200):
     """
@@ -121,7 +123,7 @@ def digits_to_number(ones, tens):
         return ones
     return tens * 10 + ones
 
-async def read_display_number(dut, required_stable=3, timeout_cycles=60000):
+async def read_display_number(dut, required_stable=3, timeout_cycles=8000):
     """Read display requiring required_stable consecutive cycles to agree."""
     last = "unset"
     streak = 0
@@ -228,7 +230,7 @@ async def test_reset_clears_display(dut):
 
     # Fresh reset — should be blank
     await do_reset(dut)
-    await ClockCycles(dut.clk, 1200)
+    await ClockCycles(dut.clk, 100)
     is_blank = await read_display_blank(dut)
     dut._log.info(f"Blank after initial reset: {is_blank}")
     assert is_blank, "Expected blank display after initial reset"
@@ -241,7 +243,7 @@ async def test_reset_clears_display(dut):
     dut._log.info(f"Value before reset: {value}")
     assert value is not None, "Display blank before second reset — roll may have failed"
     await do_reset(dut)
-    await ClockCycles(dut.clk, 1200)
+    await ClockCycles(dut.clk, 100)
     is_blank = await read_display_blank(dut)
     dut._log.info(f"Blank after reset post-roll: {is_blank}")
     assert is_blank, "Expected blank display after reset post-roll"
