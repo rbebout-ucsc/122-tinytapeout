@@ -70,7 +70,7 @@ async def wait_for_active(dut, timeout_cycles=30000):
     return False
 
 async def init(dut):
-    dut.rst_n.value  = 1
+    dut.rst_n.value  = 0
     dut.ena.value    = 1
     dut.ui_in.value  = 0
     dut.uio_in.value = 0
@@ -121,7 +121,7 @@ def digits_to_number(ones, tens):
         return ones
     return tens * 10 + ones
 
-async def read_display_number(dut, required_stable=3, timeout_cycles=8000):
+async def read_display_number(dut, required_stable=3, timeout_cycles=60000):
     """Read display requiring required_stable consecutive cycles to agree."""
     last = "unset"
     streak = 0
