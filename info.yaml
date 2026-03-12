@@ -27,7 +27,7 @@ project:
 pinout:
   # Inputs
   ui[0]: "btn1"
-  ui[1]: "btn2"
+  ui[1]: ""
   ui[2]: ""
   ui[3]: ""
   ui[4]: ""
