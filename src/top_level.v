@@ -1,76 +1,66 @@
-    
 `default_nettype none
-
 module tt_um_d20_roller_rbebout(
-    input  wire [7:0] ui_in,    // Dedicated inputs
-    output wire [7:0] uo_out,   // Dedicated outputs
-    input  wire [7:0] uio_in,   // IOs: Input path
-    output wire [7:0] uio_out,  // IOs: Output path
-    output wire [7:0] uio_oe,   // IOs: Enable path (active high: 0=input, 1=output)
-    input  wire       ena,      // always 1 when the design is powered, so you can ignore it
-    input  wire       clk,      // clock
-    input  wire       rst_n     // reset_n - low to reset
-
+    input  wire [7:0] ui_in,
+    output wire [7:0] uo_out,
+    input  wire [7:0] uio_in,
+    output wire [7:0] uio_out,
+    output wire [7:0] uio_oe,
+    input  wire       ena,
+    input  wire       clk,
+    input  wire       rst_n
 );
-
     wire rst   = ui_in[0];
     wire start = ui_in[1];
-
-    wire start_clean;
-    wire start_pulse;
-    wire reset_pulse;
-    wire [4:0] roll_value;
+    wire start_stable;
+    wire reset_stable;
     wire [4:0] final_value;
     wire active;
 
-    wire [3:0] tens;
-    wire [3:0] ones;
+    debouncer #() db_rst (
+        .clk(clk), .rst(1'b0),
+        .btn(rst), .stable_out(reset_stable)
+    );
+    debouncer #() db_btn (
+        .clk(clk), .rst(1'b0),
+        .btn(start), .stable_out(start_stable)
+    );
 
-
-    edge_detect ed_reset (
-    .clk(clk),
-    .rst(1'b0),
-    .signal_in(rst),
-    .rising_edge(reset_pulse)
-);
-
-    button_toggle btn_ctrl (
-    .clk(clk),
-    .rst(rst),
-    .btn(start),
-    .pulse(start_pulse)
-);
-
-    // core roller
     d20_core core (
         .clk(clk),
-        .rst(reset_pulse),
-        .start(start_pulse),
+        .rst(reset_stable),
+        .start(start_stable),
         .value(final_value),
         .active(active)
     );
 
-    // digit split
-    digit_split split (
-        .value(final_value),
-        .active(active),
-        .tens(tens),
-        .ones(ones)
-    );
-    
-    assign uio_oe = 8'b11000000;
-    // display
+    wire [6:0] seg_wire;
+    wire [1:0] digits_wire;
+
     display_driver disp (
         .clk(clk),
-        .rst(reset_pulse),
+        .rst(reset_stable),
         .active(active),
-        .tens(tens),
-        .ones(ones),
-        .seg({uo_out[0], uo_out[1], uo_out[2], uo_out[3], uo_out[4], uo_out[5], uo_out[6]}),
-        .DIG1(uio_out[0]),
-        .DIG2(uio_out[1])
+        .value(final_value),
+        .seg(seg_wire),
+        .digits(digits_wire)
     );
 
-wire _unused = &{ena, ui_in[7:2], uio_in, uio_out[7:2], uo_out[7], rst_n, 1'b0};
+    assign uo_out[0] = seg_wire[0];
+    assign uo_out[1] = seg_wire[1];
+    assign uo_out[2] = seg_wire[2];
+    assign uo_out[3] = seg_wire[3];
+    assign uo_out[4] = seg_wire[4];
+    assign uo_out[5] = seg_wire[5];
+    assign uo_out[6] = seg_wire[6];
+    assign uo_out[7] = 1'b0;
 
+    assign uio_out[0] = digits_wire[0];
+    assign uio_out[1] = digits_wire[1];
+    assign uio_out[2] = start_stable;
+    assign uio_out[3] = reset_stable;
+    assign uio_out[7:4] = 4'b0;
+
+    assign uio_oe = 8'b000001111;
+
+    wire _unused = &{ena, ui_in[7:2], uio_in, rst_n, 1'b0};
 endmodule

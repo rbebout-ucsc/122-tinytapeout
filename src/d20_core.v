@@ -3,59 +3,63 @@
 
 module d20_core (
     input  wire clk,
-    input  wire rst,        // use reset_pulse here
-    input  wire start,      // 1-cycle pulse from edge_detect
+    input  wire rst,
+    input  wire start,
     output reg  [4:0] value,
     output reg  active
 );
+    reg [4:0] lfsr;
+    parameter BLANK_CYCLES = 25000;
+    parameter BLANK_BITS   = 15;
+    reg [BLANK_BITS-1:0] blank_ctr;
+    reg                  blanking;
+    reg start_prev;
+    wire start_rise = start & ~start_prev;
 
-    //--------------------------------------------------
-    // Control State (ONLY handles toggle)
-    //--------------------------------------------------
-    reg rolling;
-
-    always @(posedge clk) begin
-        if (rst)
-            rolling <= 1'b0;
-        else if (start)
-            rolling <= ~rolling;
+    initial begin
+        lfsr      = 5'b00001;
+        value     = 0;
+        active    = 0;
+        blanking  = 0;
+        blank_ctr = 0;
+        start_prev = 0;
     end
-
-
-    //--------------------------------------------------
-    // Datapath (counter + divider)
-    //--------------------------------------------------
-    reg [9:0] div;
 
     always @(posedge clk) begin
         if (rst) begin
-            div    <= 10'd0;
-            value  <= 5'd1;
-            active <= 1'b0;
-        end
-        else begin
+            lfsr       <= 5'b00001;
+            value      <= 5'd0;
+            active     <= 1'b0;
+            blanking   <= 1'b0;
+            blank_ctr  <= 0;
+            start_prev <= 1'b0;
+        end else begin
+            start_prev <= start;
 
-            // Once we roll once, display stays active
-            if (rolling)
-                active <= 1'b1;
+            if (lfsr == 5'b0)
+                lfsr <= 5'b00001;
+            else
+                lfsr <= {lfsr[3:0], lfsr[4] ^ lfsr[2]};
 
-            if (rolling) begin
-                if (div == 10'd500) begin
-                    div <= 10'd0;
-
-                    if (value == 5'd20)
-                        value <= 5'd1;
-                    else
-                        value <= value + 5'd1;
-
+            if (blanking) begin
+                if (blank_ctr == BLANK_CYCLES - 1) begin
+                    blanking  <= 1'b0;
+                    blank_ctr <= 0;
+                    active    <= 1'b1;
                 end else begin
-                    div <= div + 10'd1;
+                    blank_ctr <= blank_ctr + 1'b1;
                 end
             end
-            else begin
-                div <= 10'd0;   // reset divider when stopped
+
+            if (start_rise) begin
+                if (lfsr >= 5'd21)
+                    value <= lfsr - 5'd20;
+                else
+                    value <= lfsr;
+                active    <= 1'b0;
+                blanking  <= 1'b1;
+                blank_ctr <= 0;
             end
         end
     end
-
 endmodule
