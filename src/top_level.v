@@ -9,25 +9,20 @@ module tt_um_d20_roller_rbebout(
     input  wire       clk,
     input  wire       rst_n
 );
-    wire rst   = ui_in[0];
-    wire start = ui_in[1];
+    wire start = ui_in[0];
     wire start_stable;
-    wire reset_stable;
+    wire hard_rst = ~rst_n;
     wire [4:0] final_value;
     wire active;
 
-    debouncer #() db_rst (
-        .clk(clk), .rst(1'b0),
-        .btn(rst), .stable_out(reset_stable)
-    );
     debouncer #() db_btn (
-        .clk(clk), .rst(1'b0),
+        .clk(clk), .rst(hard_rst),
         .btn(start), .stable_out(start_stable)
     );
 
     d20_core core (
         .clk(clk),
-        .rst(reset_stable),
+        .rst(hard_rst),
         .start(start_stable),
         .value(final_value),
         .active(active)
@@ -38,7 +33,7 @@ module tt_um_d20_roller_rbebout(
 
     display_driver disp (
         .clk(clk),
-        .rst(reset_stable),
+        .rst(hard_rst),
         .active(active),
         .value(final_value),
         .seg(seg_wire),
@@ -57,10 +52,9 @@ module tt_um_d20_roller_rbebout(
     assign uio_out[0] = digits_wire[0];
     assign uio_out[1] = digits_wire[1];
     assign uio_out[2] = start_stable;
-    assign uio_out[3] = reset_stable;
-    assign uio_out[7:4] = 4'b0;
+    assign uio_out[7:3] = 5'b0;
 
-    assign uio_oe = 8'b000001111;
+    assign uio_oe = 8'b000000111;
 
-    wire _unused = &{ena, ui_in[7:2], uio_in, rst_n, 1'b0};
+    wire _unused = &{ena, ui_in[7:1], uio_in, 1'b0};
 endmodule
